@@ -1,0 +1,6 @@
+aiohttp
+async_timeout
+asyncio
+pip-tools
+requests
+simplejson
