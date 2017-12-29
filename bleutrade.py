@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 
 import asyncio
+from copy import deepcopy
 from decimal import Decimal
+from typing import Union
 
 import aiohttp
 import requests
 import simplejson
+
+
+class VolumeException(Exception):
+    # noinspection PyArgumentList
+    def __init__(self,*args,**kwargs):
+        Exception.__init__(self,*args,**kwargs)
 
 
 class BleuTrade:
@@ -34,15 +42,15 @@ class BleuTrade:
 
 
 class Market(BleuTrade):
-    def __init__(self, market_name, market_json, order_book_json):
+    def __init__(self, market_name, markets_json, order_book_json):
         super().__init__()
         self.market_name = market_name
-        self.market = market_json
-        self.order_book = self.convert_order_book_to_decimal(order_book_json)
+        self.market      = next(market for market in markets_json if market['MarketName'] == market_name)
+        self.order_book  = self.convert_order_book_to_decimal(order_book_json)
 
     @classmethod
     async def init_async(cls, market_name):
-        market_json = await BleuTrade.fetch_async(cls.urls['market'])
+        market_json     = await BleuTrade.fetch_async(cls.urls['market'])
         order_book_json = await BleuTrade.fetch_async(cls.urls['order_book'] % market_name)
         self = Market(market_name, market_json, order_book_json)
         return self
@@ -64,17 +72,56 @@ class Market(BleuTrade):
                 for key, value in order.items():
                     order_book[buy_sell][i][key] = Decimal(value)
 
-        order_book["buy"] = sorted(order_book["buy"], key=lambda d: -d['Rate'])
+        order_book["buy"]  = sorted(order_book["buy"], key=lambda d: -d['Rate'])
         order_book["sell"] = sorted(order_book["sell"], key=lambda d: d['Rate'])
         return order_book
 
+    def price(self, buy_sell: str, volume: Union[int,float,Decimal]=0) -> Decimal:
+        """
+
+        :param buy_sell:  ["buy", "sell", "mid"]
+        :param volume:    units to buy in the MarketCurrency ie for MOON_BTC this would be MOON
+        :return:          price in BaseCurrency
+        """
+        assert buy_sell in ["buy", "sell", "mid"]
+
+        if buy_sell == "mid":
+            return (self.order_book["sell"][0]["Rate"] + self.order_book["buy"][0]["Rate"]) / 2
+        else:
+            if volume == 0:
+                return self.order_book[buy_sell][0]["Rate"]
+            else:
+                queue     = self.order_book[buy_sell]
+                orders    = []
+                remaining = volume
+
+                # Pick out all the orders required to fulfil the volume
+                for order in queue:
+                    order = deepcopy(order)
+                    if order['Quantity'] > remaining:
+                        order['Quantity'] = Decimal(remaining)
+                    orders.append(order)
+                    remaining -= order['Quantity']
+                    if remaining == 0:
+                        break
+
+                price = Decimal(0)
+                for order in orders:
+                    price += order['Quantity'] * order['Rate']
+
+                if remaining > 0:
+                    raise VolumeException("%s: price(%s) -> price: %s, volume: %s, remaining: %s, orders: %s" % (self.market_name, buy_sell, price, volume, remaining, orders))
+
+                return price
+
     def mid_market_value(self):
-        return (self.order_book["sell"][0]["Rate"] + self.order_book["buy"][0]["Rate"]) / 2
+        return self.price("mid", 0)
 
 
 async def main():
     mooncoin_market = await Market.init_async("MOON_BTC")
-    print("MOON_BTC - mid_market_value: %s" % mooncoin_market.mid_market_value())
+    print("MOON_BTC - price()\tbuy: %s\tmid: %s\tsell: %s\t" % tuple([ mooncoin_market.price(type) for type in ["buy", "mid", "sell"] ]))
+    print("MOON_BTC - price()\tbuy: %s\tmid: %s\tsell: %s\t" % tuple([ mooncoin_market.price(type, 30000000000000) for type in ["buy", "mid", "sell"] ]))
     pass
 
 
