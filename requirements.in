@@ -4,3 +4,6 @@ asyncio
 pip-tools
 requests
 simplejson
+ccxt
+paco
+pydash

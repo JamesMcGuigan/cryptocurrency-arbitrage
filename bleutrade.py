@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+from collections import OrderedDict
 from copy import deepcopy
 from decimal import Decimal
 from typing import Union
@@ -8,6 +9,7 @@ from typing import Union
 import aiohttp
 import requests
 import simplejson
+from pydash import py_ as _
 
 
 class VolumeException(Exception):
@@ -119,10 +121,14 @@ class Market(BleuTrade):
 
 
 async def main():
-    mooncoin_market = await Market.init_async("MOON_BTC")
-    print("MOON_BTC - price()\tbuy: %s\tmid: %s\tsell: %s\t" % tuple([ mooncoin_market.price(type) for type in ["buy", "mid", "sell"] ]))
-    print("MOON_BTC - price()\tbuy: %s\tmid: %s\tsell: %s\t" % tuple([ mooncoin_market.price(type, 30000000000000) for type in ["buy", "mid", "sell"] ]))
-    pass
+    market_names     = [ "MOON_BTC", "MOON_DOGE", "MOON_ETH", "DOGE_BTC", "ETH_BTC" ]
+    # market_objects   = await paco.map(Market.init_async, market_names)
+    market_objects   = await asyncio.gather(*[ Market.init_async(market_name) for market_name in market_names ])
+    markets          = OrderedDict(_.zip(market_names, market_objects))
+
+    for market_name, market in markets.items():
+        print(market_name, "\tbuy: %-11s\tmid: %-11s\tsell: %-11s\t" % tuple([ market.price(type) for type in ["buy", "mid", "sell"] ]))
+
 
 
 if __name__ == "__main__":
