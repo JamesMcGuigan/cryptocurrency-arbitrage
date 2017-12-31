@@ -1,9 +1,14 @@
 aiohttp
 async_timeout
 asyncio
+ccxt
+jupyter
+jupyterlab
+matplotlib
+numpy
+paco
+pandas
 pip-tools
+pydash
 requests
 simplejson
-ccxt
-paco
-pydash

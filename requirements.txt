@@ -6,22 +6,73 @@
 #
 aiodns==1.1.1             # via ccxt
 aiohttp==2.3.7
+appnope==0.1.0            # via ipython
 async-timeout==2.0.0
 asyncio==3.4.3
+attrs==17.4.0             # via pytest
+bleach==2.1.2             # via nbconvert
 cchardet==2.1.1           # via ccxt
 ccxt==1.10.507
 certifi==2017.11.5        # via requests
 chardet==3.0.4            # via aiohttp, requests
 click==6.7                # via pip-tools
+cycler==0.10.0            # via matplotlib
+decorator==4.1.2          # via ipython, traitlets
+entrypoints==0.2.3        # via nbconvert
 first==2.0.1              # via pip-tools
+html5lib==1.0.1           # via bleach
 idna==2.6                 # via requests
+ipykernel==4.7.0          # via ipywidgets, jupyter, jupyter-console, notebook, qtconsole
+ipython-genutils==0.2.0   # via jupyterlab, nbformat, notebook, qtconsole, traitlets
+ipython==6.2.1            # via ipykernel, ipywidgets, jupyter-console
+ipywidgets==7.1.0         # via jupyter
+jedi==0.11.1              # via ipython
+jinja2==2.10              # via nbconvert, notebook
+jsonschema==2.6.0         # via nbformat
+jupyter-client==5.2.0     # via ipykernel, jupyter-console, notebook, qtconsole
+jupyter-console==5.2.0    # via jupyter
+jupyter-core==4.4.0       # via jupyter-client, nbconvert, nbformat, notebook, qtconsole
+jupyter==1.0.0
+jupyterlab-launcher==0.6.0  # via jupyterlab
+jupyterlab==0.30.6
+markupsafe==1.0           # via jinja2
+matplotlib==2.1.1
+mistune==0.8.3            # via nbconvert
 multidict==3.3.2          # via aiohttp, yarl
+nbconvert==5.3.1          # via jupyter, notebook
+nbformat==4.4.0           # via ipywidgets, nbconvert, notebook
+notebook==5.2.2           # via jupyter, jupyterlab, jupyterlab-launcher, widgetsnbextension
+numpy==1.13.3
 paco==0.2.0
+pandas==0.21.1
+pandocfilters==1.4.2      # via nbconvert
+parso==0.1.1              # via jedi
+pexpect==4.3.1            # via ipython
+pickleshare==0.7.4        # via ipython
 pip-tools==1.11.0
+pluggy==0.6.0             # via pytest
+prompt-toolkit==1.0.15    # via ipython, jupyter-console
+ptyprocess==0.5.2         # via pexpect, terminado
+py==1.5.2                 # via pytest
 pycares==2.3.0            # via aiodns
 pydash==4.3.1
+pygments==2.2.0           # via ipython, jupyter-console, nbconvert, qtconsole
+pyparsing==2.2.0          # via matplotlib
+pytest==3.3.1             # via jupyter-client
+python-dateutil==2.6.1    # via jupyter-client, matplotlib, pandas
+pytz==2017.3              # via matplotlib, pandas
+pyzmq==16.0.3             # via jupyter-client
+qtconsole==4.3.1          # via jupyter
 requests==2.18.4
+simplegeneric==0.8.1      # via ipython
 simplejson==3.13.2
-six==1.11.0               # via pip-tools
+six==1.11.0               # via bleach, cycler, html5lib, matplotlib, pip-tools, prompt-toolkit, pytest, python-dateutil, traitlets
+terminado==0.8.1          # via notebook
+testpath==0.3.1           # via nbconvert
+tornado==4.5.2            # via ipykernel, notebook, terminado
+traitlets==4.3.2          # via ipykernel, ipython, ipywidgets, jupyter-client, jupyter-core, nbconvert, nbformat, notebook, qtconsole
 urllib3==1.22             # via requests
+wcwidth==0.1.7            # via prompt-toolkit
+webencodings==0.5.1       # via html5lib
+widgetsnbextension==3.1.0  # via ipywidgets
 yarl==0.16.0              # via aiohttp

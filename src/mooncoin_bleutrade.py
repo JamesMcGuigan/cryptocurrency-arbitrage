@@ -23,6 +23,7 @@ class BleuTrade:
         "base": "https://bleutrade.com/api/v2/public/",
         "order_book": "https://bleutrade.com/api/v2/public/getorderbook?market=%s&type=ALL&depth=1000",
         "market": "https://bleutrade.com/api/v2/public/getmarkets",
+        "history": "https://bleutrade.com/api/v2/public/getorderbook?market=%s&count=200",
     }
 
     def __init__(self):
@@ -54,6 +55,7 @@ class Market(BleuTrade):
     async def init_async(cls, market_name):
         market_json     = await BleuTrade.fetch_async(cls.urls['market'])
         order_book_json = await BleuTrade.fetch_async(cls.urls['order_book'] % market_name)
+        history         = await BleuTrade.fetch_async(cls.urls['history']    % market_name)
         self = Market(market_name, market_json, order_book_json)
         return self
 

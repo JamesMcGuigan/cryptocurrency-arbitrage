@@ -1,2 +1,4 @@
 .idea
 venv
+*.pid
+.ipynb_checkpoints
