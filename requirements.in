@@ -2,12 +2,15 @@ aiohttp
 async_timeout
 asyncio
 ccxt
+fim
 jupyter
 jupyterlab
 matplotlib
+money
 numpy
 paco
 pandas
+pathos
 pip-tools
 pydash
 requests
