@@ -2,7 +2,8 @@ import pytest
 from money import Money
 from pydash import py_ as _
 
-from ..market import Market, Order
+from ..market import Market
+from ..order import Order
 
 markets_json = {
     "MOON/BTC":  {

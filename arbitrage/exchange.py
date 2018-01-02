@@ -9,7 +9,8 @@ import pandas as pd
 from money import Money
 from pydash import py_ as _
 
-from .market import Market, Trade
+from .market import Market
+from .trade import Trade
 
 
 class Exchange():
@@ -19,7 +20,7 @@ class Exchange():
     async def init_async(cls, name: str, reload: bool=False, limit: int=None):
         if name not in cls.cache or reload:
             is_async = True
-            exchange     = getattr(ccxt_async, name)({ "timeout": 100*1000 })
+            exchange     = getattr(ccxt_async, name)({ "timeout": 30*1000 })
             markets      = await exchange.fetch_markets()
             markets      = _(markets[:limit]).filter({ 'active': 'true' }).key_by('symbol').value()
             symbols      = sorted(markets.keys())
@@ -34,7 +35,7 @@ class Exchange():
     def init_sync(cls, name: str, reload: bool=False, limit: int=None):
         if name not in cls.cache and not reload:
             is_async = False
-            exchange = getattr(ccxt, name)({ "timeout": 100*1000 }) # timeout 100s - occasionally causes timeout errors
+            exchange = getattr(ccxt, name)({ "timeout": 30*1000 }) # timeout 100s - occasionally causes timeout errors
             markets  = exchange.fetch_markets()
             markets  = _(markets[:limit]).filter({ 'active': 'true' }).key_by('symbol').value()
             symbols  = sorted(markets.keys())
@@ -75,7 +76,7 @@ class Exchange():
         trades_inprogress = [input_coin]
         trades_completed  = []
         for i in range(depth):
-            trades_returned    = self.trade_all_markets(trades_inprogress)  # TODO: Buggy
+            trades_returned    = self.trade_all_markets(trades_inprogress)
             trades_completed  += [ trade for trade in trades_returned if trade.output.currency == input_coin.currency ]
             trades_inprogress  = [ trade for trade in trades_returned if trade.output.currency != input_coin.currency ]
 
