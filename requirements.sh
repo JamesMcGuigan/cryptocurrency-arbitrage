@@ -8,3 +8,6 @@ source venv/bin/activate
 pip-compile
 pip-sync
 jupyter serverextension enable --py jupyterlab --sys-prefix
+
+# Allow 4 letter currency codes for cryptocurrency
+sed -i 's/^REGEX_CURRENCY_CODE = .*/REGEX_CURRENCY_CODE = re.compile("^[A-Z]{3,4}$")/' venv/lib/python*/site-packages/money/money.py

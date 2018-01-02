@@ -1,5 +1,7 @@
 import asyncio
 import re
+import traceback
+from typing import Union, List
 
 import ccxt
 import ccxt.async as ccxt_async
@@ -7,7 +9,7 @@ import pandas as pd
 from money import Money
 from pydash import py_ as _
 
-from .market import Market
+from .market import Market, Trade
 
 
 class Exchange():
@@ -63,10 +65,29 @@ class Exchange():
         self.markets_df     = pd.DataFrame(markets)
 
 
-    def trade(self, symbol: str, coin: Money) -> Money:
-        try:
-            assert symbol in self.symbols
-            assert coin.currency in self.currencies
+    def find_arbitrage_loops(self, input_coin: Union[Money,Trade], depth=3):
+        completed_loops = []
+        for i in range(depth):
+            trades           = self.trade_all_markets([input_coin])
+            completed_loops += [ trade for trade in trades if trade.output.currency == input_coin.currency ]
+        profitable_loops = [ trade for trade in completed_loops if trade.output.amount > input_coin.amount ]
+        profitable_loops = list(reversed(sorted(profitable_loops, key=lambda t: t.amount)))
+        return profitable_loops
 
-        except:
-            return Money(0, "Invalid")
+
+    def trade_all_markets(self, inputs: List[Union[Money, Trade]]) -> List[Trade]:
+        if not isinstance(inputs, list): inputs = [inputs]
+
+        trades = []
+        try:
+            for input in inputs:
+                available_markets = _.pick_by(self.markets, lambda market, name: market.can_trade(input))
+                for name, market in available_markets.items():
+                    trade = market.trade(input)
+                    trades += [ trade ]
+        except Exception as exception:
+            traceback.print_exc(exception)
+            traceback.print_stack(exception)
+
+        return trades
+
