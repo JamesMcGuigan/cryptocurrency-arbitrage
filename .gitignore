@@ -3,3 +3,5 @@ venv
 *.pid
 .ipynb_checkpoints
 .cache
+*.wip.*
+__pycache__
