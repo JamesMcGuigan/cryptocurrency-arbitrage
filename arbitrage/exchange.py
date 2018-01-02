@@ -1,6 +1,7 @@
 import asyncio
 import re
 import time
+from decimal import Decimal
 from typing import Union, List
 
 import ccxt
@@ -72,7 +73,7 @@ class Exchange():
         self.markets_df     = pd.DataFrame(markets)
 
 
-    def find_arbitrage_loops(self, input_coin: Union[Money, Trade], depth=4) -> List[Trade]:
+    def find_arbitrage_loops(self, input_coin: Union[Money, Trade], depth: int=4, profit=1.0) -> List[Trade]:
         trades_inprogress = [input_coin]
         trades_completed  = []
         for i in range(depth):
@@ -80,8 +81,8 @@ class Exchange():
             trades_completed  += [ trade for trade in trades_returned if trade.output.currency == input_coin.currency ]
             trades_inprogress  = [ trade for trade in trades_returned if trade.output.currency != input_coin.currency ]
 
-        trades_profitable = [ trade for trade in trades_completed if trade.output.amount > input_coin.amount ]
-        trades_profitable = list(reversed(sorted(trades_profitable, key=lambda t: t.amount)))
+        trades_completed  = list(reversed(sorted(trades_completed, key=lambda t: t.amount)))
+        trades_profitable = [ trade for trade in trades_completed if trade.output > (input_coin * Decimal(profit)) ]
         return trades_profitable
 
 
