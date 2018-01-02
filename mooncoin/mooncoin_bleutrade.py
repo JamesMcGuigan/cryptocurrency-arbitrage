@@ -2,7 +2,7 @@
 
 import asyncio
 from collections import OrderedDict
-from copy import deepcopy
+from copy import copy
 from decimal import Decimal
 from typing import Union
 
@@ -101,7 +101,7 @@ class Market(BleuTrade):
 
                 # Pick out all the orders required to fulfil the volume
                 for order in queue:
-                    order = deepcopy(order)
+                    order = copy(order)
                     if order['Quantity'] > remaining:
                         order['Quantity'] = Decimal(remaining)
                     orders.append(order)

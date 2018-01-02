@@ -1,5 +1,5 @@
 
-from copy import deepcopy
+from copy import copy
 from decimal import Decimal
 from typing import Union, List
 
@@ -44,7 +44,7 @@ class Order():
     def get_minimum_order(self, minimum_order_amount: Money) -> 'Order':
         assert minimum_order_amount.currency in [self.base_currency, self.quote_currency]
 
-        output = deepcopy(self)
+        output = copy(self)
         if minimum_order_amount.currency == output.base_currency:
             output.base_volume = minimum_order_amount
 
@@ -60,7 +60,7 @@ class Order():
         """
         assert maximum.currency in [self.base_currency, self.quote_currency]
 
-        output = deepcopy(self)
+        output = copy(self)
         if maximum.currency == output.base_currency:
             if maximum < output.base_volume:
                 output.base_volume = maximum
