@@ -1,6 +1,6 @@
 import asyncio
 import re
-import traceback
+import time
 from typing import Union, List
 
 import ccxt
@@ -38,7 +38,13 @@ class Exchange():
             markets  = exchange.fetch_markets()
             markets  = _(markets[:limit]).filter({ 'active': 'true' }).key_by('symbol').value()
             symbols  = sorted(markets.keys())
-            order_books = { symbol: exchange.fetch_order_book(symbol) for symbol in symbols }
+
+            # order_books = { symbol: exchange.fetch_order_book(symbol) for symbol in symbols }
+            order_books = {}
+            for symbol in symbols:
+                while not order_books.get(symbol):
+                    try:    order_books[symbol] = exchange.fetch_order_book(symbol)
+                    except: time.sleep(1)  # occasionally an order book will time out, so keep trying until it succeeds
 
             cls.cache[name] = Exchange(name, exchange, markets, order_books, is_async)
 
@@ -65,29 +71,28 @@ class Exchange():
         self.markets_df     = pd.DataFrame(markets)
 
 
-    def find_arbitrage_loops(self, input_coin: Union[Money,Trade], depth=3):
-        completed_loops = []
+    def find_arbitrage_loops(self, input_coin: Union[Money, Trade], depth=4) -> List[Trade]:
+        trades_inprogress = [input_coin]
+        trades_completed  = []
         for i in range(depth):
-            trades           = self.trade_all_markets([input_coin])
-            completed_loops += [ trade for trade in trades if trade.output.currency == input_coin.currency ]
-        profitable_loops = [ trade for trade in completed_loops if trade.output.amount > input_coin.amount ]
-        profitable_loops = list(reversed(sorted(profitable_loops, key=lambda t: t.amount)))
-        return profitable_loops
+            trades_returned    = self.trade_all_markets(trades_inprogress)  # TODO: Buggy
+            trades_completed  += [ trade for trade in trades_returned if trade.output.currency == input_coin.currency ]
+            trades_inprogress  = [ trade for trade in trades_returned if trade.output.currency != input_coin.currency ]
+
+        trades_profitable = [ trade for trade in trades_completed if trade.output.amount > input_coin.amount ]
+        trades_profitable = list(reversed(sorted(trades_profitable, key=lambda t: t.amount)))
+        return trades_profitable
 
 
     def trade_all_markets(self, inputs: List[Union[Money, Trade]]) -> List[Trade]:
         if not isinstance(inputs, list): inputs = [inputs]
 
         trades = []
-        try:
-            for input in inputs:
-                available_markets = _.pick_by(self.markets, lambda market, name: market.can_trade(input))
-                for name, market in available_markets.items():
-                    trade = market.trade(input)
-                    trades += [ trade ]
-        except Exception as exception:
-            traceback.print_exc(exception)
-            traceback.print_stack(exception)
+        for input in inputs:
+            available_markets = _.pick_by(self.markets, lambda market, name: market.can_trade(input))
+            for name, market in available_markets.items():
+                trade = market.trade(input)
+                trades += [ trade ]
 
         return trades
 

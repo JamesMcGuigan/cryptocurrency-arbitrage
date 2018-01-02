@@ -55,7 +55,10 @@ class Order():
     @property
     def quote_volume(self):
         """ total amount of order in BTC """
-        return Decimal(self.base_volume / self.base_price_unit).quantize(satoshi)
+        quote_volume = Decimal(self.base_volume / self.base_price_unit)
+        try:    quote_volume = quote_volume.quantize(satoshi) # sometimes this leads to too many digits
+        except: pass
+        return quote_volume
 
 
     def set_max_remaining(self, remaining: Money):
@@ -112,8 +115,8 @@ class Trade():
         self.output = output
         self.market = market
         self.orders = orders
-        if previous_trade: self.history = _([previous_trade, previous_trade.history]).flatten().uniq().value()
-        else:              self.history = []
+        if previous_trade: self.history = _([previous_trade.history, self]).flatten_deep().filter().uniq().value()
+        else:              self.history = [self]
 
 
     @property
@@ -128,7 +131,7 @@ class Trade():
         return self.output.currency
 
     def __eq__(self, other):
-        for key in ["input", "output", "market", "orders"]:  # ignores history
+        for key in ["input", "output", "market", "orders", "history"]:
             if getattr(self, key) != getattr(other, key):
                 return False
         return True
@@ -177,7 +180,6 @@ class Market(dict):
     }
     """
     def __init__(self, *args):
-        if args[0]['id'] == "MOON_BTC": print(args[0])
         dict.__init__(self, *args)
 
     def can_trade(self, coin: Money) -> bool:
@@ -195,26 +197,24 @@ class Market(dict):
         if remaining.currency == self['base']:
             output_coin = Money(0, self['quote'])
             for order in self['bids']:
-                order = Order(order, self, 'bid')  # base -> quote
-                order.set_max_remaining(remaining)
-                if remaining.amount > 0 and order.quote_volume >= Decimal(self['limits']['amount']['min']):
+                if remaining.amount > Decimal(self['limits']['amount']['min']):
+                    order = Order(order, self, 'bid')  # MOON base -> quote BTC
+                    order.set_max_remaining(remaining)
                     output_coin = Money(output_coin.amount + order.quote_volume, output_coin.currency)
                     remaining   = Money(remaining.amount   - order.base_volume,  remaining.currency)
                     orders     += [ order ]
                 else: break
-                if remaining.amount == 0: break
 
         elif remaining.currency == self['quote']:
             output_coin = Money(0, self['base'])
             for order in self['asks']:
-                order = Order(order, self, 'ask')  # quote -> base
-                order.set_max_remaining(remaining)
-                if remaining.amount > 0 and order.quote_volume >= Decimal(self['limits']['amount']['min']):
+                if remaining.amount > Decimal(self['limits']['amount']['min']):
+                    order = Order(order, self, 'ask')  # BTC quote -> base MOON
+                    order.set_max_remaining(remaining)
                     output_coin = Money(output_coin.amount + order.base_volume,  output_coin.currency)
                     remaining   = Money(remaining.amount   - order.quote_volume, remaining.currency)
                     orders     += [order]
                 else: break
-                if remaining.amount == 0: break
 
         output_coin_amount = Decimal(output_coin.amount * (1 - Decimal(self['taker']))).quantize(satoshi)
         output_coin = Money(output_coin_amount,  output_coin.currency)

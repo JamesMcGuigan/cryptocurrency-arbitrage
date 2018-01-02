@@ -15,4 +15,3 @@ pip-tools
 pydash
 requests
 simplejson
-unittest
