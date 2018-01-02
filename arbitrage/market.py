@@ -1,4 +1,5 @@
 
+from copy import deepcopy
 from decimal import Decimal
 from typing import Union, List
 
@@ -9,38 +10,102 @@ satoshi = Decimal('0.00000001')
 
 class Order():
     @classmethod
-    def combined(cls, orders: 'List[Order]') -> 'Order':
-        assert _(orders).map(lambda o: o.base_currency).uniq().size().value()      == 1
-        assert _(orders).map(lambda o: o.quote_currency).uniq().size().value()     == 1
-        assert _(orders).map(lambda o: o.ask_bid).uniq().size().value()            == 1
-        assert _(orders).map(lambda o: o.market['symbol']).uniq().size().value()   == 1
-        assert _(orders).map(lambda o: o.market['exchange']).uniq().size().value() == 1
+    def combined(cls, orders: 'List[Order]') -> 'Union[Order, None]':
+        if len(orders) == 0: return None
 
-        base_volume    = 0
-        base_price_sum = 0
+        assert _(orders).map('base_currency').uniq().size().value()   == 1
+        assert _(orders).map('quote_currency').uniq().size().value()  == 1
+        assert _(orders).map('ask_bid').uniq().size().value()         == 1
+        assert _(orders).map('market.symbol').uniq().size().value()   == 1
+        assert _(orders).map('market.exchange').uniq().size().value() == 1
+
+        limit_order_price = Money(0, orders[0].quote_currency)
+        quote_total_price = Money(0, orders[0].quote_currency)
+        base_volume       = Money(0, orders[0].base_currency)
+
         for order in orders:
-            base_volume    += order.base_volume
-            base_price_sum += order.base_price_unit * order.base_volume
-        base_price_avg = base_price_sum / base_volume
-        combined_order = Order([base_price_avg, base_volume], orders[0].market, orders[0].ask_bid)
+            quote_total_price += order.quote_total_price
+            base_volume       += order.base_volume
+        quote_price_unit = quote_total_price / base_volume.amount
+
+        if orders[0].ask_bid == 'ask': limit_order_price = _(orders).map('quote_unit_price').max().value()
+        if orders[0].ask_bid == 'bid': limit_order_price = _(orders).map('quote_unit_price').min().value()
+
+        combined_order = Order(
+            raw=[quote_price_unit.amount, base_volume.amount],
+            market=orders[0].market,
+            ask_bid=orders[0].ask_bid,
+            limit_order_price=limit_order_price,
+        )
         return combined_order
 
 
-    def __init__(self, raw: List[Union[float, Decimal]], market: 'Market', ask_bid: str):
-        self.raw              = [Decimal(value).quantize(satoshi) for value in raw]
-        self.quote_price_unit = self.raw[0]
-        self.base_volume      = self.raw[1]
+    def get_minimum_order(self, minimum_order_amount: Money) -> 'Order':
+        assert minimum_order_amount.currency in [self.base_currency, self.quote_currency]
 
-        self.market         = market
-        self.ask_bid        = ask_bid
-        self.base_currency  = market['base']
-        self.quote_currency = market['quote']
-        self.exchange_name  = market['exchange']
+        output = deepcopy(self)
+        if minimum_order_amount.currency == output.base_currency:
+            output.base_volume = minimum_order_amount
+
+        elif minimum_order_amount.currency == output.quote_currency:
+            output.quote_volume = minimum_order_amount
+
+        return output
+
+
+    def with_max_remaining(self, maximum: Money) -> 'Order':
+        """
+        Return a copy of the order with at most maximum volme
+        """
+        assert maximum.currency in [self.base_currency, self.quote_currency]
+
+        output = deepcopy(self)
+        if maximum.currency == output.base_currency:
+            if maximum < output.base_volume:
+                output.base_volume = maximum
+
+        elif maximum.currency == output.quote_currency:
+            if maximum < output.quote_volume:
+                output.quote_volume = maximum
+
+        return output
+
+
+    @classmethod
+    def quantize(cls, money: Money):
+        return Money( Decimal(money.amount).quantize(satoshi), money.currency)
+
+    def __init__(self, raw: List[Union[float, Decimal]], market: 'Market', ask_bid: str, limit_order_price: Union[Money,float,int,str,Decimal]=None):
+        self.market           = market
+        self.ask_bid          = ask_bid
+        self.base_currency    = market['base']
+        self.quote_currency   = market['quote']
+        self.exchange_name    = market['exchange']
+
+        self.raw              = raw
+        self.quote_unit_price = Money(Decimal(raw[0]).quantize(satoshi), self.quote_currency)
+        self.base_volume      = Money(Decimal(raw[1]).quantize(satoshi), self.base_currency)
+        if not limit_order_price:
+            self.limit_order_price = self.quote_unit_price # used for combined orders
+            self.is_combined       = False
+        else:
+            if not isinstance(limit_order_price, Money):
+                limit_order_price = self.quantize(Money(limit_order_price, self.quote_currency))
+            assert limit_order_price.currency == self.quote_currency
+            self.limit_order_price = limit_order_price
+            self.is_combined       = True
+
 
     @property
-    def base_price_unit(self):
+    def base_unit_price(self) -> Money:
         """ price of 1 unit BTC in MOON """
-        return Decimal(1 / self.quote_price_unit).quantize(satoshi)
+        amount = 1 / self.quote_unit_price.amount
+        return Money( Decimal(amount).quantize(satoshi), self.base_currency)
+
+    @property
+    def base_total_price(self) -> Money:
+        """ price of volume in MOON - same as base_volume  """
+        return self.base_volume
 
     # @property
     # def base_volume(self):
@@ -48,38 +113,45 @@ class Order():
     #     return self.raw[1]
 
     # @property
-    # def quote_price_unit(self):
+    # def quote_unit_price(self):
     #     """ price of 1 unit MOON in BTC """
     #     return self.raw[0]
 
     @property
-    def quote_volume(self):
+    def quote_total_price(self) -> Money:
+        """ price of 1 unit BTC in MOON - same as quote_volume """
+        return self.quote_volume
+
+    @property
+    def quote_volume(self) -> Money:
         """ total amount of order in BTC """
-        quote_volume = Decimal(self.base_volume / self.base_price_unit)
-        try:    quote_volume = quote_volume.quantize(satoshi) # sometimes this leads to too many digits
-        except: pass
-        return quote_volume
+        quote_volume = Money(self.base_volume.amount / self.base_unit_price.amount, self.quote_currency)
+        return self.quantize(quote_volume)
+
+    @quote_volume.setter
+    def quote_volume(self, quote_volume: Money):
+        assert quote_volume.currency == self.quote_currency
+
+        base_volume = Money(quote_volume.amount / self.quote_unit_price.amount, self.base_currency)
+        self.base_volume = self.quantize(base_volume)
 
 
-    def set_max_remaining(self, remaining: Money):
-        """
-        If remaining money is insufficient to fufill total volume, reduce order size to
-        :param remaining:
-        :return:
-        """
-        if remaining.currency == self.base_currency:
-            if remaining.amount < self.base_volume:
-                self.base_volume = remaining.amount
-        if remaining.currency == self.quote_currency:
-            if remaining.amount < self.quote_volume:
-                self.base_volume = remaining.amount * self.quote_price_unit
+    def __gt__(self, other: 'Order'):
+        assert self.base_currency    == other.base_currency
+        assert self.quote_currency   == other.quote_currency
+        assert self.base_unit_price  == other.base_unit_price
+        assert self.quote_unit_price == other.quote_unit_price
 
-        self.base_volume = Decimal(self.base_volume).quantize(satoshi)
-        self.raw[1]      = self.base_volume
+        return self.quote_total_price > other.quote_total_price
 
 
     def __eq__(self, other):
-        for key in ["quote_price_unit", "base_volume", "market", "ask_bid", "base_currency", "quote_currency", "exchange_name"]:
+        fields = [
+            "quote_unit_price", "base_volume", "limit_order_price",
+            "base_currency", "quote_currency",
+            "market", "ask_bid",  "exchange_name"
+        ]
+        for key in fields:
             if getattr(self, key) != getattr(other, key):
                 return False
         return True
@@ -89,23 +161,24 @@ class Order():
 
     def __str__(self):
         if self.ask_bid == "bid":  # base -> quote
-            """ ask: 1000000 MOON -> 0.01 BTC @ 1e-08 MOON/BTC | bluetrade"""
-            return "%s: %s %s -> %s %s @ %.8f %s/%s | %s" % (
-                self.ask_bid,
-                self.base_volume, self.base_currency,
-                self.quote_volume, self.quote_currency,
-                self.base_price_unit, self.base_currency, self.quote_currency,
-                self.exchange_name
+            """bluetrade(ask): 1000000 MOON -> 0.01 BTC @ 1e-08 MOON/BTC"""
+            return "%s(%s): %s -> %s @ %.8f %s/%s, avg: %.8f" % (
+                self.exchange_name, self.ask_bid,
+                str(self.base_total_price),
+                str(self.quote_total_price),
+                self.limit_order_price.amount, self.base_currency, self.quote_currency,
+                self.quote_unit_price.amount
             )
         if self.ask_bid == "ask":  # quote -> base
-            """ bid: 0.02 BTC -> 1000000 MOON @ 2e-08 MOON/BTC | bluetrade"""
-            return "%s: %s %s -> %s %s @ %.8f %s/%s | %s" % (
-                self.ask_bid,
-                self.quote_volume, self.quote_currency,
-                self.base_volume, self.base_currency,
-                self.base_price_unit, self.base_currency, self.quote_currency,
-                self.exchange_name
+            """ bluetrade(bid): 0.02 BTC -> 1000000 MOON @ 2e-08 MOON/BTC"""
+            return "%s(%s): %s -> %s @ %.8f %s/%s, avg: %.8f" % (
+                self.exchange_name, self.ask_bid,
+                str(self.quote_total_price),
+                str(self.base_total_price),
+                self.limit_order_price.amount, self.base_currency, self.quote_currency,
+                self.quote_unit_price.amount
             )
+
 
 
 
@@ -191,33 +264,40 @@ class Market(dict):
             previous_trade = input_coin
             input_coin = previous_trade.output
 
-        remaining = Money(input_coin.amount, input_coin.currency)
+        remaining            = Money(input_coin.amount, input_coin.currency)
+        minimum_order_amount = Money(self['limits']['amount']['min'], self['quote'])
+
         orders = []
         output_coin = Money(0, 'XXX')
         if remaining.currency == self['base']:
             output_coin = Money(0, self['quote'])
             for order in self['bids']:
-                if remaining.amount > Decimal(self['limits']['amount']['min']):
-                    order = Order(order, self, 'bid')  # MOON base -> quote BTC
-                    order.set_max_remaining(remaining)
-                    output_coin = Money(output_coin.amount + order.quote_volume, output_coin.currency)
-                    remaining   = Money(remaining.amount   - order.base_volume,  remaining.currency)
-                    orders     += [ order ]
+                order         = Order(order, self, 'bid')  # MOON base -> quote BTC
+                order         = order.with_max_remaining(remaining)
+                minimum_order = order.get_minimum_order(minimum_order_amount)
+
+                if remaining > minimum_order.base_total_price:
+                    output_coin += order.quote_total_price
+                    remaining   -= order.base_total_price
+                    orders      += [ order ]
                 else: break
 
         elif remaining.currency == self['quote']:
             output_coin = Money(0, self['base'])
             for order in self['asks']:
-                if remaining.amount > Decimal(self['limits']['amount']['min']):
-                    order = Order(order, self, 'ask')  # BTC quote -> base MOON
-                    order.set_max_remaining(remaining)
-                    output_coin = Money(output_coin.amount + order.base_volume,  output_coin.currency)
-                    remaining   = Money(remaining.amount   - order.quote_volume, remaining.currency)
-                    orders     += [order]
+                order         = Order(order, self, 'ask')  # BTC quote -> base MOON
+                order         = order.with_max_remaining(remaining)
+                minimum_order = order.get_minimum_order(minimum_order_amount)
+
+                if remaining > minimum_order.quote_total_price:
+                    output_coin += order.base_total_price
+                    remaining   -= order.quote_total_price
+                    orders      += [ order ]
                 else: break
 
-        output_coin_amount = Decimal(output_coin.amount * (1 - Decimal(self['taker']))).quantize(satoshi)
-        output_coin = Money(output_coin_amount,  output_coin.currency)
+        output_coin *= (1 - Decimal(self['taker']))
+        output_coin = Order.quantize(output_coin)
+
         return Trade(
             input=input_coin,
             output=output_coin,

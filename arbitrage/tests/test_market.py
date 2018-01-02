@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 import pytest
 from money import Money
 from pydash import py_ as _
@@ -58,6 +56,15 @@ markets = _.map_values(markets_json, Market)
         "orders": [
             Order([ 1e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='bid')
         ]
+    },
+    {
+        "notes":  "bid price",
+        "market": "MOON/BTC",
+        "input":  Money('2',        "BTC"),
+        "output": Money('99750000', "MOON"),
+        "orders": [
+            Order([ 2e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='ask')
+        ]
     }
 ])
 def test_trade(test):
@@ -75,11 +82,29 @@ def test_trade(test):
         "ask_bid": "ask",
         "input":   [ 1e-08, 100000000 ],
         "output": {
-            "base_price_unit":   Decimal('1e+8'),  # price of 1 unit BTC in MOON
-            "base_volume":       Decimal('1e+8'),  # total amount of order in MOON
+            "base_unit_price":   Money('100000000', 'MOON'),  # price of 1 unit BTC in MOON
+            "base_total_price":  Money('100000000', 'MOON'),  # total amount of order in MOON
+            "base_volume":       Money('100000000', 'MOON'),  # total amount of order in MOON
             "base_currency":     "MOON",
-            "quote_price_unit":  Decimal('1e-8'),  # price of 1 unit MOON in BTC
-            "quote_volume":      Decimal('1'),     # total amount of order in BTC
+            "quote_unit_price":  Money('0.00000001', 'BTC'),  # price of 1 unit MOON in BTC
+            "quote_total_price": Money('1', 'BTC'),           # total amount of order in BTC
+            "quote_volume":      Money('1', 'BTC'),           # total amount of order in BTC
+            "quote_currency":    "BTC",
+        }
+    },
+    {
+        "notes":   "basic getter and setter calculations",
+        "market":  "MOON/BTC",
+        "ask_bid": "bid",
+        "input":   [ 2e-08, 400000000 ],
+        "output": {
+            "base_unit_price":   Money( '50000000', 'MOON'),  # price of 1 unit BTC in MOON
+            "base_total_price":  Money('400000000', 'MOON'),  # total amount of order in MOON
+            "base_volume":       Money('400000000', 'MOON'),  # total amount of order in MOON
+            "base_currency":     "MOON",
+            "quote_unit_price":  Money('0.00000002', 'BTC'),  # price of 1 unit MOON in BTC
+            "quote_total_price": Money('8', 'BTC'),           # total amount of order in BTC
+            "quote_volume":      Money('8', 'BTC'),           # total amount of order in BTC
             "quote_currency":    "BTC",
         }
     }
@@ -88,3 +113,40 @@ def test_order(test):
     order = Order(test['input'], market=markets[test['market']], ask_bid=test['ask_bid'])
     input = { key: getattr(order,  key) for key in test['output'].keys() }
     assert input == test['output']
+
+
+@pytest.mark.parametrize("test", [
+    {
+        "notes":  "test len() == 0",
+        "input":  [],
+        "output": None
+    },
+    {
+        "notes":  "test len() == 1",
+        "input":  [
+            Order([ 1e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='ask')
+        ],
+        "output": Order([ 1e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='ask')
+    },
+    {
+        "notes":  "ask len() == 2",
+        "input":  [
+            Order([ 1e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='ask'),
+            Order([ 2e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='ask'),
+            Order([ 3e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='ask')
+        ],
+        "output": Order([ 2e-08, 300000000 ], market=markets["MOON/BTC"], ask_bid='ask', limit_order_price=3e-08)
+    },
+    {
+        "notes":  "ask len() == 2",
+        "input":  [
+            Order([ 3e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='bid'),
+            Order([ 2e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='bid'),
+            Order([ 1e-08, 100000000 ], market=markets["MOON/BTC"], ask_bid='bid')
+        ],
+        "output": Order([ 2e-08, 300000000 ], market=markets["MOON/BTC"], ask_bid='bid', limit_order_price=1e-08)
+    },
+])
+def test_order_combined(test):
+    combined_order = Order.combined(test['input'])
+    assert combined_order == test['output']
