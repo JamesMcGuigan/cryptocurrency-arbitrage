@@ -39,11 +39,11 @@ async def main_async():
     for exchange_name in exchanges.keys():
         for input_coin in arbitrage_coins:
             print("find_arbitrage_loops: %s -> %s" % (exchange_name, input_coin))
-            arbitrage_markets[exchange_name+':'+str(input_coin)] = exchanges[exchange_name].find_arbitrage_loops(input_coin, depth=4, profit=1)
+            arbitrage_markets[exchange_name+':'+str(input_coin)] = exchanges[exchange_name].find_arbitrage_loops(input_coin, depth=6, profit=1)
 
     for key, arbitrage_loops in arbitrage_markets.items():
         if len(arbitrage_loops):
-            print("\n----------------------------------------\n".join([ trade for trade in arbitrage_loops ]))
+            print("\n----------------------------------------\n".join([ str(trade) for trade in arbitrage_loops ]))
     print("DONE")
 
 
